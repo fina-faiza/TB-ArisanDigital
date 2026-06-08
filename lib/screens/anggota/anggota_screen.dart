@@ -15,8 +15,11 @@ class AnggotaScreen extends StatefulWidget {
 class _AnggotaScreenState extends State<AnggotaScreen> {
   final _service = ArisanService();
   final _uuid = const Uuid();
-  final _currency =
-      NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+  final _currency = NumberFormat.currency(
+    locale: 'id_ID',
+    symbol: 'Rp ',
+    decimalDigits: 0,
+  );
   final _searchCtrl = TextEditingController();
 
   List<Anggota> _anggota = [];
@@ -47,8 +50,7 @@ class _AnggotaScreenState extends State<AnggotaScreen> {
     final q = _searchCtrl.text.toLowerCase();
     setState(() {
       _filtered = _anggota
-          .where((a) =>
-              a.nama.toLowerCase().contains(q) || a.noHp.contains(q))
+          .where((a) => a.nama.toLowerCase().contains(q) || a.noHp.contains(q))
           .toList();
     });
   }
@@ -63,53 +65,59 @@ class _AnggotaScreenState extends State<AnggotaScreen> {
       context: context,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-            left: 20,
-            right: 20,
-            top: 20),
+          bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          left: 20,
+          right: 20,
+          top: 20,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(existing == null ? 'Tambah Anggota' : 'Edit Anggota',
-                style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(
+              existing == null ? 'Tambah Anggota' : 'Edit Anggota',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 16),
             TextField(
               controller: namaCtrl,
               decoration: const InputDecoration(
-                  labelText: 'Nama Lengkap',
-                  border: OutlineInputBorder()),
+                labelText: 'Nama Lengkap',
+                border: OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: hpCtrl,
               decoration: const InputDecoration(
-                  labelText: 'No. HP', border: OutlineInputBorder()),
+                labelText: 'No. HP',
+                border: OutlineInputBorder(),
+              ),
               keyboardType: TextInputType.phone,
             ),
             const SizedBox(height: 12),
             TextField(
               controller: alamatCtrl,
               decoration: const InputDecoration(
-                  labelText: 'Alamat (opsional)',
-                  border: OutlineInputBorder()),
+                labelText: 'Alamat (opsional)',
+                border: OutlineInputBorder(),
+              ),
             ),
             const SizedBox(height: 12),
             StatefulBuilder(
               builder: (ctx, setS) => DropdownButtonFormField<String>(
-                value: nominal,
+                initialValue: nominal,
                 decoration: const InputDecoration(
-                    labelText: 'Nominal Arisan',
-                    border: OutlineInputBorder()),
+                  labelText: 'Nominal Arisan',
+                  border: OutlineInputBorder(),
+                ),
                 items: const [
-                  DropdownMenuItem(
-                      value: '50000', child: Text('Rp 50.000')),
-                  DropdownMenuItem(
-                      value: '200000', child: Text('Rp 200.000')),
+                  DropdownMenuItem(value: '50000', child: Text('Rp 50.000')),
+                  DropdownMenuItem(value: '200000', child: Text('Rp 200.000')),
                 ],
                 onChanged: (v) => setS(() => nominal = v ?? '50000'),
               ),
@@ -117,18 +125,17 @@ class _AnggotaScreenState extends State<AnggotaScreen> {
             const SizedBox(height: 20),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2E7D32),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14)),
+                backgroundColor: const Color(0xFF2E7D32),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
               onPressed: () async {
                 if (namaCtrl.text.isEmpty || hpCtrl.text.isEmpty) return;
                 final anggota = Anggota(
                   id: existing?.id ?? _uuid.v4(),
                   nama: namaCtrl.text,
                   noHp: hpCtrl.text,
-                  alamat: alamatCtrl.text.isEmpty
-                      ? null
-                      : alamatCtrl.text,
+                  alamat: alamatCtrl.text.isEmpty ? null : alamatCtrl.text,
                   nominal: int.parse(nominal),
                   createdAt: DateTime.now().toIso8601String(),
                 );
@@ -174,7 +181,8 @@ class _AnggotaScreenState extends State<AnggotaScreen> {
                 hintText: 'Cari anggota...',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 filled: true,
                 fillColor: Colors.white,
               ),
@@ -187,4 +195,86 @@ class _AnggotaScreenState extends State<AnggotaScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     itemCount: _filtered.length,
                     itemBuilder: (_, i) {
-                      final a = _filtered[i
+                      final a = _filtered[i];
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 6),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          title: Text(
+                            a.nama,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 4),
+                              Text(a.noHp),
+                              if (a.alamat != null && a.alamat!.isNotEmpty)
+                                Text(a.alamat!),
+                              const SizedBox(height: 4),
+                              Text(_currency.format(a.nominal)),
+                            ],
+                          ),
+                          isThreeLine: true,
+                          trailing: PopupMenuButton<String>(
+                            onSelected: (value) async {
+                              if (value == 'edit') {
+                                _showForm(existing: a);
+                              } else if (value == 'delete') {
+                                if (!mounted) return;
+                                final confirmed = await showDialog<bool>(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('Hapus Anggota'),
+                                    content: const Text(
+                                      'Apakah Anda yakin ingin menghapus anggota ini?',
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, false),
+                                        child: const Text('Batal'),
+                                      ),
+                                      TextButton(
+                                        onPressed: () =>
+                                            Navigator.pop(ctx, true),
+                                        child: const Text('Hapus'),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                                if (confirmed == true) {
+                                  await _service.hapusAnggota(a.id);
+                                  if (!mounted) return;
+                                  _load();
+                                }
+                              }
+                            },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(value: 'edit', child: Text('Edit')),
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Text('Hapus'),
+                              ),
+                            ],
+                          ),
+                          onTap: () => _showForm(existing: a),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
