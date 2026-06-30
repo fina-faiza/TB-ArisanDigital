@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'services/auth_service.dart';
 import 'screens/auth/login_screen.dart';
-import 'screens/dashboard/dashboard_screen.dart';
+import 'screens/main_navigation.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -49,7 +49,7 @@ class _SplashScreenState extends State<SplashScreen> {
       context,
       MaterialPageRoute(
         builder: (_) =>
-            loggedIn ? const DashboardScreen() : const LoginScreen(),
+            loggedIn ? const MainNavigation() : const LoginScreen(),
       ),
     );
   }
@@ -62,7 +62,6 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Logo
             Container(
               width: 180,
               height: 180,
@@ -98,9 +97,7 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
             ),
             const SizedBox(height: 48),
-            const CircularProgressIndicator(
-              color: Color(0xFFB8960C),
-            ),
+            const CircularProgressIndicator(color: Color(0xFFB8960C)),
           ],
         ),
       ),

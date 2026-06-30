@@ -196,6 +196,7 @@ class Pembayaran {
       );
 }
 
+// status: 'menunggu', 'diambil', 'tidak_diambil'
 class Pengocokan {
   final String id;
   final String grupId;
@@ -204,6 +205,7 @@ class Pengocokan {
   final int putaranKe;
   final int potonganKas;
   final String? catatanKas;
+  final String status;
   final String? namaAnggota;
   final String? namaGrup;
   final int? nominalGrup;
@@ -217,6 +219,7 @@ class Pengocokan {
     required this.putaranKe,
     this.potonganKas = 0,
     this.catatanKas,
+    this.status = 'menunggu',
     this.namaAnggota,
     this.namaGrup,
     this.nominalGrup,
@@ -231,6 +234,7 @@ class Pengocokan {
         'putaran_ke': putaranKe,
         'potongan_kas': potonganKas,
         'catatan_kas': catatanKas,
+        'status': status,
       };
 
   factory Pengocokan.fromMap(Map<String, dynamic> map) => Pengocokan(
@@ -241,6 +245,7 @@ class Pengocokan {
         putaranKe: map['putaran_ke'],
         potonganKas: map['potongan_kas'] ?? 0,
         catatanKas: map['catatan_kas'],
+        status: map['status'] ?? 'menunggu',
         namaAnggota: map['nama_anggota'],
         namaGrup: map['nama_grup'],
         nominalGrup: map['nominal'],

@@ -23,6 +23,8 @@ class ArisanService {
     return result;
   }
 
+  // Hanya hitung anggota yang BELUM PERNAH MENANG (status diambil ATAU menunggu)
+  // Anggota dengan status 'tidak_diambil' akan kembali masuk ke pool
   Future<List<Anggota>> lakukanPengocokan({
     required String grupId,
     required int putaranKe,
@@ -32,10 +34,12 @@ class ArisanService {
   }) async {
     final db = await _db.database;
 
-    final sudahMenang = await db.rawQuery(
-      'SELECT anggota_id FROM pengocokan WHERE grup_id = ?',
-      [grupId],
-    );
+    // Anggota yang statusnya 'diambil' atau 'menunggu' dianggap sudah menang
+    // Anggota dengan 'tidak_diambil' TIDAK dihitung sudah menang (masuk pool lagi)
+    final sudahMenang = await db.rawQuery('''
+      SELECT anggota_id FROM pengocokan 
+      WHERE grup_id = ? AND status IN ('diambil', 'menunggu')
+    ''', [grupId]);
     final idSudahMenang =
         sudahMenang.map((e) => e['anggota_id']).toList();
 
@@ -72,14 +76,35 @@ class ArisanService {
         'putaran_ke': putaranKe,
         'potongan_kas': potonganKas,
         'catatan_kas': catatanKas,
+        'status': 'menunggu',
       });
     }
 
     return pemenangList;
   }
 
+  // Update status pengocokan: 'diambil' atau 'tidak_diambil'
+  // Jika 'tidak_diambil' -> hapus record agar otomatis masuk pool lagi
+  Future<void> updateStatusPengocokan(
+      String pengocokanId, String status) async {
+    final db = await _db.database;
+
+    if (status == 'tidak_diambil') {
+      // Hapus record supaya nama kembali ke pool kocokan
+      await db.delete('pengocokan',
+          where: 'id = ?', whereArgs: [pengocokanId]);
+    } else {
+      await db.update(
+        'pengocokan',
+        {'status': status},
+        where: 'id = ?',
+        whereArgs: [pengocokanId],
+      );
+    }
+  }
+
   // ─────────────────────────────────────────
-  // PERIODE
+  // PERIODE (CRUD)
   // ─────────────────────────────────────────
   Future<List<Periode>> getAllPeriode() async {
     final db = await _db.database;
@@ -95,14 +120,54 @@ class ArisanService {
     return Periode.fromMap(rows.first);
   }
 
+  Future<void> tambahPeriode(Periode periode) async {
+    final db = await _db.database;
+    await db.insert('periode', periode.toMap());
+  }
+
+  Future<void> updatePeriode(Periode periode) async {
+    final db = await _db.database;
+    await db.update('periode', periode.toMap(),
+        where: 'id = ?', whereArgs: [periode.id]);
+  }
+
+  Future<void> hapusPeriode(String id) async {
+    final db = await _db.database;
+    await db.delete('periode', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // Set periode jadi aktif, nonaktifkan periode lain
+  Future<void> setPeriodeAktif(String id) async {
+    final db = await _db.database;
+    await db.update('periode', {'status': 'nonaktif'});
+    await db.update('periode', {'status': 'aktif'},
+        where: 'id = ?', whereArgs: [id]);
+  }
+
   // ─────────────────────────────────────────
-  // GRUP ARISAN
+  // GRUP ARISAN (CRUD)
   // ─────────────────────────────────────────
   Future<List<GrupArisan>> getGrupByPeriode(String periodeId) async {
     final db = await _db.database;
     final rows = await db.query('grup_arisan',
         where: 'periode_id = ?', whereArgs: [periodeId]);
     return rows.map((r) => GrupArisan.fromMap(r)).toList();
+  }
+
+  Future<void> tambahGrup(GrupArisan grup) async {
+    final db = await _db.database;
+    await db.insert('grup_arisan', grup.toMap());
+  }
+
+  Future<void> updateGrup(GrupArisan grup) async {
+    final db = await _db.database;
+    await db.update('grup_arisan', grup.toMap(),
+        where: 'id = ?', whereArgs: [grup.id]);
+  }
+
+  Future<void> hapusGrup(String id) async {
+    final db = await _db.database;
+    await db.delete('grup_arisan', where: 'id = ?', whereArgs: [id]);
   }
 
   // ─────────────────────────────────────────
@@ -194,9 +259,10 @@ class ArisanService {
 
   Future<int> getPutaranTerakhir(String grupId) async {
     final db = await _db.database;
-    final rows = await db.rawQuery(
-        'SELECT MAX(putaran_ke) as max_putaran FROM pengocokan WHERE grup_id = ?',
-        [grupId]);
+    final rows = await db.rawQuery('''
+      SELECT MAX(putaran_ke) as max_putaran FROM pengocokan 
+      WHERE grup_id = ? AND status IN ('diambil', 'menunggu')
+    ''', [grupId]);
     return (rows.first['max_putaran'] as int?) ?? 0;
   }
 

@@ -7,6 +7,7 @@ import '../anggota/anggota_screen.dart';
 import '../pembayaran/pembayaran_screen.dart';
 import '../pengocokan/pengocokan_screen.dart';
 import '../riwayat/riwayat_screen.dart';
+import '../periode/periode_screen.dart';
 import '../auth/login_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -53,6 +54,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (_grupSelected != null) {
         await _loadStats();
       }
+    } else {
+      setState(() {
+        _periodeAktif = null;
+        _grupList = [];
+        _grupSelected = null;
+      });
     }
     setState(() => _loading = false);
   }
@@ -73,7 +80,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   void _navigate(Widget screen) {
     Navigator.push(context, MaterialPageRoute(builder: (_) => screen))
-        .then((_) => _loadStats());
+        .then((_) => _loadData());
   }
 
   @override
@@ -116,208 +123,299 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ? const Center(
               child: CircularProgressIndicator(
                   color: Color(0xFFB8960C)))
-          : RefreshIndicator(
-              onRefresh: _loadData,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Periode aktif
-                    if (_periodeAktif != null)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 10),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFB8960C).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                              color: const Color(0xFFB8960C).withOpacity(0.3)),
-                        ),
-                        child: Text(
-                          'Periode ${_periodeAktif!.namaPeriode} • ${_periodeAktif!.bulanMulai} - ${_periodeAktif!.bulanSelesai}',
-                          style: const TextStyle(
-                              color: Color(0xFFB8960C),
-                              fontWeight: FontWeight.w600),
-                        ),
-                      ),
-                    const SizedBox(height: 16),
-
-                    // Pilih Grup
-                    Row(
+          : _periodeAktif == null
+              ? _emptyState()
+              : RefreshIndicator(
+                  onRefresh: _loadData,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Grup:',
-                            style: TextStyle(
-                                color: Colors.white70, fontSize: 13)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: DropdownButton<GrupArisan>(
-                            value: _grupSelected,
-                            dropdownColor: const Color(0xFF16213E),
-                            style: const TextStyle(color: Colors.white),
-                            isExpanded: true,
-                            items: _grupList
-                                .map((g) => DropdownMenuItem(
-                                      value: g,
-                                      child: Text(g.namaGrup),
-                                    ))
-                                .toList(),
-                            onChanged: (v) {
-                              setState(() => _grupSelected = v);
-                              _loadStats();
-                            },
+                        // Periode aktif
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFB8960C)
+                                .withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: const Color(0xFFB8960C)
+                                    .withOpacity(0.3)),
+                          ),
+                          child: Text(
+                            'Periode ${_periodeAktif!.namaPeriode} • ${_periodeAktif!.bulanMulai} - ${_periodeAktif!.bulanSelesai}',
+                            style: const TextStyle(
+                                color: Color(0xFFB8960C),
+                                fontWeight: FontWeight.w600),
                           ),
                         ),
-                        const SizedBox(width: 16),
-                        const Text('Bulan:',
-                            style: TextStyle(
-                                color: Colors.white70, fontSize: 13)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: DropdownButton<String>(
-                            value: _bulanSelected,
-                            dropdownColor: const Color(0xFF16213E),
-                            style: const TextStyle(color: Colors.white),
-                            isExpanded: true,
-                            items: _bulanList
-                                .map((b) => DropdownMenuItem(
-                                      value: b,
-                                      child: Text(b),
-                                    ))
-                                .toList(),
-                            onChanged: (v) {
-                              setState(() => _bulanSelected = v!);
-                              _loadStats();
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
+                        const SizedBox(height: 16),
 
-                    // Total Terkumpul
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFFB8960C), Color(0xFFD4AF37)],
-                        ),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Total Iuran Terkumpul',
-                              style: TextStyle(
-                                  color: Colors.white70, fontSize: 13)),
-                          const SizedBox(height: 8),
-                          Text(
-                            _currency
-                                .format(_stats['total_terkumpul'] ?? 0),
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 28,
-                                fontWeight: FontWeight.bold),
+                        if (_grupList.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF16213E),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              children: [
+                                const Icon(Icons.group_off,
+                                    color: Colors.white38, size: 40),
+                                const SizedBox(height: 8),
+                                const Text(
+                                  'Belum ada grup arisan di periode ini',
+                                  style: TextStyle(
+                                      color: Colors.white54),
+                                ),
+                                const SizedBox(height: 12),
+                                ElevatedButton(
+                                  style: ElevatedButton.styleFrom(
+                                      backgroundColor:
+                                          const Color(0xFFB8960C)),
+                                  onPressed: () =>
+                                      _navigate(const PeriodeScreen()),
+                                  child: const Text('Kelola Periode',
+                                      style: TextStyle(
+                                          color: Colors.white)),
+                                ),
+                              ],
+                            ),
+                          )
+                        else ...[
+                          // Pilih Grup & Bulan
+                          Row(
+                            children: [
+                              const Text('Grup:',
+                                  style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 13)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: DropdownButton<GrupArisan>(
+                                  value: _grupSelected,
+                                  dropdownColor:
+                                      const Color(0xFF16213E),
+                                  style: const TextStyle(
+                                      color: Colors.white),
+                                  isExpanded: true,
+                                  items: _grupList
+                                      .map((g) => DropdownMenuItem(
+                                            value: g,
+                                            child: Text(g.namaGrup),
+                                          ))
+                                      .toList(),
+                                  onChanged: (v) {
+                                    setState(() => _grupSelected = v);
+                                    _loadStats();
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 16),
+                              const Text('Bulan:',
+                                  style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 13)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: DropdownButton<String>(
+                                  value: _bulanSelected,
+                                  dropdownColor:
+                                      const Color(0xFF16213E),
+                                  style: const TextStyle(
+                                      color: Colors.white),
+                                  isExpanded: true,
+                                  items: _bulanList
+                                      .map((b) => DropdownMenuItem(
+                                            value: b,
+                                            child: Text(b),
+                                          ))
+                                      .toList(),
+                                  onChanged: (v) {
+                                    setState(
+                                        () => _bulanSelected = v!);
+                                    _loadStats();
+                                  },
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${_grupSelected?.namaGrup ?? '-'} • Bulan $_bulanSelected',
-                            style: const TextStyle(
-                                color: Colors.white70, fontSize: 12),
+                          const SizedBox(height: 16),
+
+                          // Total Terkumpul
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(20),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Color(0xFFB8960C),
+                                  Color(0xFFD4AF37)
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Column(
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
+                              children: [
+                                const Text('Total Iuran Terkumpul',
+                                    style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 13)),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _currency.format(
+                                      _stats['total_terkumpul'] ?? 0),
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 28,
+                                      fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${_grupSelected?.namaGrup ?? '-'} • Bulan $_bulanSelected',
+                                  style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 12),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Statistik
+                          Row(
+                            children: [
+                              _statCard(
+                                  'Total Anggota',
+                                  '${_stats['total_anggota'] ?? 0}',
+                                  Icons.group,
+                                  const Color(0xFF00BCD4)),
+                              const SizedBox(width: 10),
+                              _statCard(
+                                  'Sudah Bayar',
+                                  '${_stats['sudah_bayar'] ?? 0}',
+                                  Icons.check_circle,
+                                  Colors.green),
+                              const SizedBox(width: 10),
+                              _statCard(
+                                  'Belum Bayar',
+                                  '${_stats['belum_bayar'] ?? 0}',
+                                  Icons.warning_rounded,
+                                  Colors.orange),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          _statCardWide(
+                            'Putaran Selesai',
+                            '${_stats['putaran_terakhir'] ?? 0} dari ${_grupSelected?.totalPutaran ?? 10}',
+                            Icons.rotate_right,
+                            const Color(0xFFB8960C),
                           ),
                         ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
+                        const SizedBox(height: 24),
 
-                    // Statistik
-                    Row(
-                      children: [
-                        _statCard(
-                            'Total Anggota',
-                            '${_stats['total_anggota'] ?? 0}',
-                            Icons.group,
-                            const Color(0xFF00BCD4)),
-                        const SizedBox(width: 10),
-                        _statCard(
-                            'Sudah Bayar',
-                            '${_stats['sudah_bayar'] ?? 0}',
-                            Icons.check_circle,
-                            Colors.green),
-                        const SizedBox(width: 10),
-                        _statCard(
-                            'Belum Bayar',
-                            '${_stats['belum_bayar'] ?? 0}',
-                            Icons.warning_rounded,
-                            Colors.orange),
+                        // Menu Utama
+                        const Text('Menu Utama',
+                            style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white)),
+                        const SizedBox(height: 12),
+                        GridView.count(
+                          shrinkWrap: true,
+                          physics:
+                              const NeverScrollableScrollPhysics(),
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 12,
+                          crossAxisSpacing: 12,
+                          childAspectRatio: 1.3,
+                          children: [
+                            _menuCard(
+                                'Data Anggota',
+                                Icons.people,
+                                const Color(0xFF0D47A1),
+                                () => _navigate(AnggotaScreen(
+                                    grupList: _grupList))),
+                            _menuCard(
+                                'Pembayaran',
+                                Icons.payment,
+                                const Color(0xFF4A148C),
+                                () => _navigate(PembayaranScreen(
+                                    grupList: _grupList,
+                                    bulanAwal: _bulanSelected))),
+                            _menuCard(
+                                'Spin Arisan',
+                                Icons.casino_rounded,
+                                const Color(0xFFB71C1C),
+                                () => _navigate(PengocokanScreen(
+                                    grupList: _grupList))),
+                            _menuCard(
+                                'Riwayat',
+                                Icons.history,
+                                const Color(0xFF1B5E20),
+                                () => _navigate(RiwayatScreen(
+                                    grupList: _grupList))),
+                            _menuCard(
+                                'Kelola Periode',
+                                Icons.calendar_month,
+                                const Color(0xFF006064),
+                                () =>
+                                    _navigate(const PeriodeScreen())),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        const Center(
+                          child: Text(
+                            'Arisan Khadijiyyah by Firsha',
+                            style: TextStyle(
+                                color: Colors.white24, fontSize: 11),
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    _statCardWide(
-                      'Putaran Selesai',
-                      '${_stats['putaran_terakhir'] ?? 0} dari ${_grupSelected?.totalPutaran ?? 10}',
-                      Icons.rotate_right,
-                      const Color(0xFFB8960C),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Menu Utama
-                    const Text('Menu Utama',
-                        style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white)),
-                    const SizedBox(height: 12),
-                    GridView.count(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 12,
-                      crossAxisSpacing: 12,
-                      childAspectRatio: 1.3,
-                      children: [
-                        _menuCard(
-                            'Data Anggota',
-                            Icons.people,
-                            const Color(0xFF0D47A1),
-                            () => _navigate(AnggotaScreen(
-                                grupList: _grupList))),
-                        _menuCard(
-                            'Pembayaran',
-                            Icons.payment,
-                            const Color(0xFF4A148C),
-                            () => _navigate(PembayaranScreen(
-                                grupList: _grupList,
-                                bulanAwal: _bulanSelected))),
-                        _menuCard(
-                            'Spin Arisan',
-                            Icons.casino_rounded,
-                            const Color(0xFFB71C1C),
-                            () => _navigate(PengocokanScreen(
-                                grupList: _grupList))),
-                        _menuCard(
-                            'Riwayat',
-                            Icons.history,
-                            const Color(0xFF1B5E20),
-                            () => _navigate(RiwayatScreen(
-                                grupList: _grupList))),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    const Center(
-                      child: Text(
-                        'Arisan Khadijiyyah by Firsha',
-                        style: TextStyle(
-                            color: Colors.white24, fontSize: 11),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+    );
+  }
+
+  Widget _emptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.calendar_month,
+                color: Colors.white38, size: 60),
+            const SizedBox(height: 16),
+            const Text(
+              'Belum ada periode aktif',
+              style: TextStyle(color: Colors.white70, fontSize: 16),
             ),
+            const SizedBox(height: 8),
+            const Text(
+              'Buat periode arisan terlebih dahulu',
+              style: TextStyle(color: Colors.white38, fontSize: 12),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFB8960C)),
+              onPressed: () => _navigate(const PeriodeScreen()),
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text('Kelola Periode',
+                  style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

@@ -82,6 +82,7 @@ class DatabaseHelper {
       )
     ''');
 
+    // status: 'menunggu', 'diambil', 'tidak_diambil'
     await db.execute('''
       CREATE TABLE pengocokan (
         id TEXT PRIMARY KEY,
@@ -91,6 +92,7 @@ class DatabaseHelper {
         putaran_ke INTEGER NOT NULL,
         potongan_kas INTEGER NOT NULL DEFAULT 0,
         catatan_kas TEXT,
+        status TEXT NOT NULL DEFAULT 'menunggu',
         FOREIGN KEY (grup_id) REFERENCES grup_arisan(id),
         FOREIGN KEY (anggota_id) REFERENCES anggota(id)
       )
