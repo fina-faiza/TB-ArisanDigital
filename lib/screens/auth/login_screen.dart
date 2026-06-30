@@ -10,7 +10,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailCtrl = TextEditingController(text: 'pengurus@arisan.com');
+  final _emailCtrl = TextEditingController(text: 'pengurus@khadijiyyah.com');
   final _passCtrl = TextEditingController(text: 'admin123');
   final _auth = AuthService();
   bool _loading = false;
@@ -18,7 +18,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _login() async {
     setState(() => _loading = true);
-    final user = await _auth.login(_emailCtrl.text.trim(), _passCtrl.text.trim());
+    final user =
+        await _auth.login(_emailCtrl.text.trim(), _passCtrl.text.trim());
     setState(() => _loading = false);
 
     if (!mounted) return;
@@ -37,7 +38,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1B5E20),
+      backgroundColor: const Color(0xFF1A1A2E),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -45,23 +46,45 @@ class _LoginScreenState extends State<LoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.savings_rounded, size: 80, color: Colors.white),
+                // Logo Khadijiyyah
+                Container(
+                  width: 160,
+                  height: 160,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.05),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Image.asset(
+                      'assets/images/logo_khadijiyyah.png',
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 16),
                 const Text(
-                  'ArisanKu',
+                  'Arisan Khadijiyyah',
                   style: TextStyle(
-                    fontSize: 32,
+                    fontSize: 26,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: Color(0xFFB8960C),
                     letterSpacing: 1.5,
                   ),
                 ),
                 const Text(
-                  'Kelola arisan lebih mudah & transparan',
-                  style: TextStyle(color: Colors.white70, fontSize: 13),
+                  'Idrisiyyah Indonesia',
+                  style: TextStyle(
+                    color: Color(0xFF00BCD4),
+                    fontSize: 13,
+                    letterSpacing: 2,
+                  ),
                 ),
                 const SizedBox(height: 48),
+
+                // Card Login
                 Card(
+                  color: const Color(0xFF16213E),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16)),
                   child: Padding(
@@ -69,16 +92,39 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        const Text('Masuk',
-                            style: TextStyle(
-                                fontSize: 22, fontWeight: FontWeight.bold)),
+                        const Text(
+                          'Login Pengurus',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                         const SizedBox(height: 20),
                         TextField(
                           controller: _emailCtrl,
-                          decoration: const InputDecoration(
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
                             labelText: 'Email',
-                            prefixIcon: Icon(Icons.email_outlined),
-                            border: OutlineInputBorder(),
+                            labelStyle:
+                                const TextStyle(color: Colors.white54),
+                            prefixIcon: const Icon(Icons.email_outlined,
+                                color: Color(0xFF00BCD4)),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                  color: Colors.white24),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                  color: Colors.white24),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                  color: Color(0xFF00BCD4)),
+                            ),
                           ),
                           keyboardType: TextInputType.emailAddress,
                         ),
@@ -86,14 +132,35 @@ class _LoginScreenState extends State<LoginScreen> {
                         TextField(
                           controller: _passCtrl,
                           obscureText: _obscure,
+                          style: const TextStyle(color: Colors.white),
                           decoration: InputDecoration(
                             labelText: 'Password',
-                            prefixIcon: const Icon(Icons.lock_outline),
-                            border: const OutlineInputBorder(),
+                            labelStyle:
+                                const TextStyle(color: Colors.white54),
+                            prefixIcon: const Icon(Icons.lock_outline,
+                                color: Color(0xFF00BCD4)),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                  color: Colors.white24),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                  color: Colors.white24),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(10),
+                              borderSide: const BorderSide(
+                                  color: Color(0xFF00BCD4)),
+                            ),
                             suffixIcon: IconButton(
-                              icon: Icon(_obscure
-                                  ? Icons.visibility
-                                  : Icons.visibility_off),
+                              icon: Icon(
+                                _obscure
+                                    ? Icons.visibility
+                                    : Icons.visibility_off,
+                                color: Colors.white54,
+                              ),
                               onPressed: () =>
                                   setState(() => _obscure = !_obscure),
                             ),
@@ -105,7 +172,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           child: ElevatedButton(
                             onPressed: _loading ? null : _login,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF2E7D32),
+                              backgroundColor: const Color(0xFFB8960C),
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10)),
@@ -118,12 +185,19 @@ class _LoginScreenState extends State<LoginScreen> {
                                         strokeWidth: 2,
                                         color: Colors.white))
                                 : const Text('Masuk',
-                                    style: TextStyle(fontSize: 16)),
+                                    style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold)),
                           ),
                         ),
                       ],
                     ),
                   ),
+                ),
+                const SizedBox(height: 24),
+                const Text(
+                  'Arisan Khadijiyyah by Firsha',
+                  style: TextStyle(color: Colors.white38, fontSize: 12),
                 ),
               ],
             ),

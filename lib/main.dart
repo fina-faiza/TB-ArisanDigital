@@ -16,12 +16,11 @@ class ArisanApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'ArisanKu',
+      title: 'Arisan Khadijiyyah',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorSchemeSeed: const Color(0xFF2E7D32),
+        colorSchemeSeed: const Color(0xFFB8960C),
         useMaterial3: true,
-        fontFamily: 'Roboto',
       ),
       home: const SplashScreen(),
     );
@@ -45,7 +44,6 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _checkSession() async {
     await Future.delayed(const Duration(seconds: 2));
     if (!mounted) return;
-
     final loggedIn = await AuthService().isLoggedIn();
     Navigator.pushReplacement(
       context,
@@ -59,29 +57,50 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF1B5E20),
-      body: const Center(
+      backgroundColor: const Color(0xFF1A1A2E),
+      body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.savings_rounded, size: 100, color: Colors.white),
-            SizedBox(height: 20),
-            Text(
-              'ArisanKu',
+            // Logo
+            Container(
+              width: 180,
+              height: 180,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                shape: BoxShape.circle,
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Image.asset(
+                  'assets/images/logo_khadijiyyah.png',
+                  fit: BoxFit.contain,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Arisan Khadijiyyah',
               style: TextStyle(
-                fontSize: 40,
+                fontSize: 28,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: Color(0xFFB8960C),
                 letterSpacing: 2,
               ),
             ),
-            SizedBox(height: 8),
-            Text(
-              'Kelola arisan lebih mudah & transparan',
-              style: TextStyle(color: Colors.white60, fontSize: 14),
+            const SizedBox(height: 4),
+            const Text(
+              'Idrisiyyah Indonesia',
+              style: TextStyle(
+                color: Color(0xFF00BCD4),
+                fontSize: 13,
+                letterSpacing: 3,
+              ),
             ),
-            SizedBox(height: 48),
-            CircularProgressIndicator(color: Colors.white54),
+            const SizedBox(height: 48),
+            const CircularProgressIndicator(
+              color: Color(0xFFB8960C),
+            ),
           ],
         ),
       ),

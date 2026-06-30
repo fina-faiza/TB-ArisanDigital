@@ -19,43 +19,49 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   final _service = ArisanService();
   final _auth = AuthService();
-  final _currency =
-      NumberFormat.currency(locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
+  final _currency = NumberFormat.currency(
+      locale: 'id_ID', symbol: 'Rp ', decimalDigits: 0);
 
-  static const _arisanAktifId = 'arisan-001';
-
+  Periode? _periodeAktif;
+  List<GrupArisan> _grupList = [];
+  GrupArisan? _grupSelected;
   Map<String, int> _stats = {};
   bool _loading = true;
+
+  final List<String> _bulanList = [
+    'Mei', 'Juni', 'Juli', 'Agustus', 'September',
+    'Oktober', 'November', 'Desember', 'Januari', 'Februari'
+  ];
+  String _bulanSelected = 'Mei';
 
   @override
   void initState() {
     super.initState();
-    _loadStats();
-    _initArisanDefault();
+    _loadData();
   }
 
-  Future<void> _initArisanDefault() async {
-    final list = await _service.getAllArisan();
-    if (list.isEmpty) {
-      await _service.tambahArisan(
-        Arisan(
-          id: _arisanAktifId,
-          namaArisan: 'Arisan Keluarga Besar',
-          periode: 'Bulanan',
-          nominal: 50000,
-          tanggalMulai: DateTime.now().toIso8601String(),
-        ),
-      );
+  Future<void> _loadData() async {
+    setState(() => _loading = true);
+    final periode = await _service.getPeriodeAktif();
+    if (periode != null) {
+      final grupList = await _service.getGrupByPeriode(periode.id);
+      setState(() {
+        _periodeAktif = periode;
+        _grupList = grupList;
+        _grupSelected = grupList.isNotEmpty ? grupList.first : null;
+      });
+      if (_grupSelected != null) {
+        await _loadStats();
+      }
     }
+    setState(() => _loading = false);
   }
 
   Future<void> _loadStats() async {
-    setState(() => _loading = true);
-    final stats = await _service.getDashboardStats(_arisanAktifId);
-    setState(() {
-      _stats = stats;
-      _loading = false;
-    });
+    if (_grupSelected == null) return;
+    final stats = await _service.getDashboardStats(
+        _grupSelected!.id, _bulanSelected);
+    setState(() => _stats = stats);
   }
 
   void _logout() async {
@@ -73,42 +79,123 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF1F8E9),
+      backgroundColor: const Color(0xFF1A1A2E),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF2E7D32),
+        backgroundColor: const Color(0xFF16213E),
         foregroundColor: Colors.white,
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.savings_rounded),
-            SizedBox(width: 8),
-            Text('ArisanKu',
-                style: TextStyle(fontWeight: FontWeight.bold)),
+            Image.asset('assets/images/logo_khadijiyyah.png',
+                height: 32),
+            const SizedBox(width: 8),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Arisan Khadijiyyah',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFB8960C))),
+                Text('Idrisiyyah Indonesia',
+                    style: TextStyle(
+                        fontSize: 10, color: Color(0xFF00BCD4))),
+              ],
+            ),
           ],
         ),
         actions: [
-          IconButton(onPressed: _loadStats, icon: const Icon(Icons.refresh)),
-          IconButton(onPressed: _logout, icon: const Icon(Icons.logout)),
+          IconButton(
+              onPressed: _loadData,
+              icon: const Icon(Icons.refresh, color: Colors.white70)),
+          IconButton(
+              onPressed: _logout,
+              icon: const Icon(Icons.logout, color: Colors.white70)),
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(
+              child: CircularProgressIndicator(
+                  color: Color(0xFFB8960C)))
           : RefreshIndicator(
-              onRefresh: _loadStats,
+              onRefresh: _loadData,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Selamat Datang, Pengurus!',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold)),
-                    Text(
-                      DateFormat('EEEE, d MMMM yyyy', 'id_ID')
-                          .format(DateTime.now()),
-                      style: const TextStyle(color: Colors.grey),
+                    // Periode aktif
+                    if (_periodeAktif != null)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFB8960C).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                              color: const Color(0xFFB8960C).withOpacity(0.3)),
+                        ),
+                        child: Text(
+                          'Periode ${_periodeAktif!.namaPeriode} • ${_periodeAktif!.bulanMulai} - ${_periodeAktif!.bulanSelesai}',
+                          style: const TextStyle(
+                              color: Color(0xFFB8960C),
+                              fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+
+                    // Pilih Grup
+                    Row(
+                      children: [
+                        const Text('Grup:',
+                            style: TextStyle(
+                                color: Colors.white70, fontSize: 13)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: DropdownButton<GrupArisan>(
+                            value: _grupSelected,
+                            dropdownColor: const Color(0xFF16213E),
+                            style: const TextStyle(color: Colors.white),
+                            isExpanded: true,
+                            items: _grupList
+                                .map((g) => DropdownMenuItem(
+                                      value: g,
+                                      child: Text(g.namaGrup),
+                                    ))
+                                .toList(),
+                            onChanged: (v) {
+                              setState(() => _grupSelected = v);
+                              _loadStats();
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        const Text('Bulan:',
+                            style: TextStyle(
+                                color: Colors.white70, fontSize: 13)),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: DropdownButton<String>(
+                            value: _bulanSelected,
+                            dropdownColor: const Color(0xFF16213E),
+                            style: const TextStyle(color: Colors.white),
+                            isExpanded: true,
+                            items: _bulanList
+                                .map((b) => DropdownMenuItem(
+                                      value: b,
+                                      child: Text(b),
+                                    ))
+                                .toList(),
+                            onChanged: (v) {
+                              setState(() => _bulanSelected = v!);
+                              _loadStats();
+                            },
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
 
                     // Total Terkumpul
                     Container(
@@ -116,7 +203,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       padding: const EdgeInsets.all(20),
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [Color(0xFF2E7D32), Color(0xFF66BB6A)],
+                          colors: [Color(0xFFB8960C), Color(0xFFD4AF37)],
                         ),
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -124,19 +211,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text('Total Iuran Terkumpul',
-                              style: TextStyle(color: Colors.white70)),
+                              style: TextStyle(
+                                  color: Colors.white70, fontSize: 13)),
                           const SizedBox(height: 8),
                           Text(
-                            _currency.format(_stats['total_terkumpul'] ?? 0),
+                            _currency
+                                .format(_stats['total_terkumpul'] ?? 0),
                             style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 28,
                                 fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 4),
-                          const Text('Periode: Arisan Keluarga Besar',
-                              style: TextStyle(
-                                  color: Colors.white70, fontSize: 12)),
+                          Text(
+                            '${_grupSelected?.namaGrup ?? '-'} • Bulan $_bulanSelected',
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 12),
+                          ),
                         ],
                       ),
                     ),
@@ -145,26 +236,41 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     // Statistik
                     Row(
                       children: [
-                        _statCard('Total Anggota',
+                        _statCard(
+                            'Total Anggota',
                             '${_stats['total_anggota'] ?? 0}',
-                            Icons.group, Colors.blue),
-                        const SizedBox(width: 12),
-                        _statCard('Sudah Bayar',
+                            Icons.group,
+                            const Color(0xFF00BCD4)),
+                        const SizedBox(width: 10),
+                        _statCard(
+                            'Sudah Bayar',
                             '${_stats['sudah_bayar'] ?? 0}',
-                            Icons.check_circle, Colors.green),
-                        const SizedBox(width: 12),
-                        _statCard('Belum Bayar',
+                            Icons.check_circle,
+                            Colors.green),
+                        const SizedBox(width: 10),
+                        _statCard(
+                            'Belum Bayar',
                             '${_stats['belum_bayar'] ?? 0}',
-                            Icons.warning_rounded, Colors.orange),
+                            Icons.warning_rounded,
+                            Colors.orange),
                       ],
+                    ),
+                    const SizedBox(height: 10),
+                    _statCardWide(
+                      'Putaran Selesai',
+                      '${_stats['putaran_terakhir'] ?? 0} dari ${_grupSelected?.totalPutaran ?? 10}',
+                      Icons.rotate_right,
+                      const Color(0xFFB8960C),
                     ),
                     const SizedBox(height: 24),
 
+                    // Menu Utama
                     const Text('Menu Utama',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white)),
                     const SizedBox(height: 12),
-
                     GridView.count(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -176,28 +282,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         _menuCard(
                             'Data Anggota',
                             Icons.people,
-                            const Color(0xFF1565C0),
-                            () => _navigate(
-                                AnggotaScreen(arisanId: _arisanAktifId))),
+                            const Color(0xFF0D47A1),
+                            () => _navigate(AnggotaScreen(
+                                grupList: _grupList))),
                         _menuCard(
                             'Pembayaran',
                             Icons.payment,
-                            const Color(0xFF6A1B9A),
-                            () => _navigate(
-                                PembayaranScreen(arisanId: _arisanAktifId))),
+                            const Color(0xFF4A148C),
+                            () => _navigate(PembayaranScreen(
+                                grupList: _grupList,
+                                bulanAwal: _bulanSelected))),
                         _menuCard(
                             'Spin Arisan',
                             Icons.casino_rounded,
-                            const Color(0xFFC62828),
-                            () => _navigate(
-                                PengocokanScreen(arisanId: _arisanAktifId))),
+                            const Color(0xFFB71C1C),
+                            () => _navigate(PengocokanScreen(
+                                grupList: _grupList))),
                         _menuCard(
                             'Riwayat',
                             Icons.history,
-                            const Color(0xFF00695C),
-                            () => _navigate(
-                                RiwayatScreen(arisanId: _arisanAktifId))),
+                            const Color(0xFF1B5E20),
+                            () => _navigate(RiwayatScreen(
+                                grupList: _grupList))),
                       ],
+                    ),
+                    const SizedBox(height: 24),
+                    const Center(
+                      child: Text(
+                        'Arisan Khadijiyyah by Firsha',
+                        style: TextStyle(
+                            color: Colors.white24, fontSize: 11),
+                      ),
                     ),
                   ],
                 ),
@@ -209,25 +324,60 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _statCard(
       String label, String value, IconData icon, Color color) {
     return Expanded(
-      child: Card(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: const Color(0xFF16213E),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 6),
+            Text(value,
+                style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white)),
+            Text(label,
+                style:
+                    const TextStyle(fontSize: 10, color: Colors.white54),
+                textAlign: TextAlign.center),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statCardWide(
+      String label, String value, IconData icon, Color color) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF16213E),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, color: color, size: 28),
-              const SizedBox(height: 6),
+              Text(label,
+                  style: const TextStyle(
+                      color: Colors.white54, fontSize: 12)),
               Text(value,
                   style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold)),
-              Text(label,
-                  style:
-                      const TextStyle(fontSize: 11, color: Colors.grey),
-                  textAlign: TextAlign.center),
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold)),
             ],
           ),
-        ),
+        ],
       ),
     );
   }
@@ -236,30 +386,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
       String label, IconData icon, Color color, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
-      child: Card(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            gradient: LinearGradient(
-              colors: [color, color.withOpacity(0.7)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          gradient: LinearGradient(
+            colors: [color, color.withOpacity(0.6)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 40, color: Colors.white),
-              const SizedBox(height: 8),
-              Text(label,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14)),
-            ],
-          ),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 40, color: Colors.white),
+            const SizedBox(height: 8),
+            Text(label,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14)),
+          ],
         ),
       ),
     );

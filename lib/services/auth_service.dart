@@ -1,5 +1,5 @@
-import 'database_helper.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'database_helper.dart';
 
 class AuthService {
   static const _keyUserId = 'user_id';
@@ -41,7 +41,7 @@ class AuthService {
     return {
       'id': id,
       'nama': prefs.getString(_keyUserNama) ?? '',
-      'role': prefs.getString(_keyUserRole) ?? 'anggota',
+      'role': prefs.getString(_keyUserRole) ?? 'pengurus',
     };
   }
 
