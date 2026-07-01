@@ -27,6 +27,11 @@ class _PengocokanScreenState extends State<PengocokanScreen>
   bool _sudahKocok = false;
   int _putaranKe = 1;
 
+  // Status menunggu konfirmasi di putaran ini
+  List<Pengocokan> _menungguKonfirmasi = [];
+  bool _adaSusulan = false;
+  List<String> _poolSusulan = []; // ID anggota yang kembali ke pool
+
   late AnimationController _spinController;
   late AnimationController _revealController;
   late Animation<double> _scaleAnimation;
@@ -66,14 +71,20 @@ class _PengocokanScreenState extends State<PengocokanScreen>
     if (_grupSelected == null) return;
     final anggota = await _service.getAnggotaByGrup(_grupSelected!.id);
     final putaran = await _service.getPutaranTerakhir(_grupSelected!.id);
+    final putaranAktif = putaran + 1;
+    final menunggu = await _service.getPemenangMenunggu(
+        _grupSelected!.id, putaranAktif);
+
     setState(() {
       _semuaAnggota = anggota;
       _anggotaNames = anggota.map((a) => a.nama).toList();
-      _putaranKe = putaran + 1;
+      _putaranKe = putaranAktif;
+      _menungguKonfirmasi = menunggu;
+      _adaSusulan = _poolSusulan.isNotEmpty;
     });
   }
 
-  void _showKasDialog() {
+  void _showKasDialog({bool isSusulan = false}) {
     _kasCtrl.clear();
     _catatanKas = '';
     showDialog(
@@ -81,11 +92,28 @@ class _PengocokanScreenState extends State<PengocokanScreen>
       barrierDismissible: false,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFF16213E),
-        title: const Text('Potongan Kas Khadijiyyah',
-            style: TextStyle(color: Colors.white, fontSize: 16)),
+        title: Text(
+          isSusulan ? 'Spin Susulan' : 'Potongan Kas Khadijiyyah',
+          style: const TextStyle(color: Colors.white, fontSize: 16),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (isSusulan)
+              Container(
+                padding: const EdgeInsets.all(10),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.withOpacity(0.4)),
+                ),
+                child: Text(
+                  'Spin susulan untuk ${_poolSusulan.length} pemenang yang tidak diambil.\nMasih termasuk Putaran $_putaranKe.',
+                  style: const TextStyle(color: Colors.orange, fontSize: 12),
+                  textAlign: TextAlign.center,
+                ),
+              ),
             const Text(
               'Masukkan nominal potongan kas\n(kosongkan jika tidak ada)',
               style: TextStyle(color: Colors.white54, fontSize: 13),
@@ -109,7 +137,8 @@ class _PengocokanScreenState extends State<PengocokanScreen>
                     borderSide: const BorderSide(color: Colors.white24)),
                 focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
-                    borderSide: const BorderSide(color: Color(0xFFB8960C))),
+                    borderSide:
+                        const BorderSide(color: Color(0xFFB8960C))),
               ),
             ),
           ],
@@ -117,33 +146,42 @@ class _PengocokanScreenState extends State<PengocokanScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child:
-                const Text('Batal', style: TextStyle(color: Colors.white54)),
+            child: const Text('Batal',
+                style: TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFB8960C)),
+                backgroundColor: isSusulan
+                    ? Colors.orange
+                    : const Color(0xFFB8960C)),
             onPressed: () {
               final kas = int.tryParse(_kasCtrl.text) ?? 0;
               _catatanKas =
-                  kas > 0 ? '(kas khadijiyyah: sudah terpotong)' : '';
+                  kas > 0 ? '(kas khadijiyyah: seikhlasnya, hubungi admin)' : '';
               Navigator.pop(context);
-              _mulaiKocok(kas);
+              _mulaiKocok(kas, isSusulan: isSusulan);
             },
-            child: const Text('Mulai Kocok',
-                style: TextStyle(color: Colors.white)),
+            child: Text(
+              isSusulan ? 'Mulai Spin Susulan' : 'Mulai Kocok',
+              style: const TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Future<void> _mulaiKocok(int potonganKas) async {
+  Future<void> _mulaiKocok(int potonganKas,
+      {bool isSusulan = false}) async {
     if (_semuaAnggota.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Tidak ada anggota tersedia')));
       return;
     }
+
+    final jumlahPemenang = isSusulan
+        ? _poolSusulan.length
+        : _grupSelected!.jumlahPemenangPerPutaran;
 
     setState(() {
       _loading = true;
@@ -173,9 +211,11 @@ class _PengocokanScreenState extends State<PengocokanScreen>
     final pemenangList = await _service.lakukanPengocokan(
       grupId: _grupSelected!.id,
       putaranKe: _putaranKe,
-      jumlahPemenang: _grupSelected!.jumlahPemenangPerPutaran,
+      jumlahPemenang: jumlahPemenang,
       potonganKas: potonganKas,
       catatanKas: _catatanKas.isNotEmpty ? _catatanKas : null,
+      isSusulan: isSusulan,
+      tambahPool: isSusulan ? _poolSusulan : [],
     );
 
     if (!mounted) return;
@@ -183,8 +223,13 @@ class _PengocokanScreenState extends State<PengocokanScreen>
     if (pemenangList.isEmpty) {
       setState(() => _loading = false);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Semua anggota sudah pernah menang!')));
+          content: Text('Tidak ada anggota tersedia untuk dikocok!')));
       return;
+    }
+
+    // Reset pool susulan setelah spin susulan
+    if (isSusulan) {
+      setState(() => _poolSusulan = []);
     }
 
     setState(() {
@@ -192,10 +237,129 @@ class _PengocokanScreenState extends State<PengocokanScreen>
       _namaDisplay = pemenangList.first.nama;
       _loading = false;
       _sudahKocok = true;
+      _adaSusulan = false;
     });
 
     _revealController.reset();
     _revealController.forward();
+    _loadData();
+  }
+
+  // Konfirmasi pemenang yang menunggu
+  void _showKonfirmasiDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setS) => AlertDialog(
+          backgroundColor: const Color(0xFF16213E),
+          title: Text(
+            'Konfirmasi Pemenang Putaran $_putaranKe',
+            style: const TextStyle(
+                color: Color(0xFFB8960C), fontSize: 16),
+          ),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Pilih status pengambilan untuk setiap pemenang:',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                ..._menungguKonfirmasi.map((p) => Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white12),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              p.namaAnggota ?? '-',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          GestureDetector(
+                            onTap: () async {
+                              await _service.tandaiDiambil(p.id);
+                              setS(() => _menungguKonfirmasi
+                                  .removeWhere((x) => x.id == p.id));
+                              _loadData();
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.green),
+                              ),
+                              child: const Text('Diambil',
+                                  style: TextStyle(
+                                      color: Colors.green, fontSize: 11)),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          GestureDetector(
+                            onTap: () async {
+                              final anggotaId = await _service
+                                  .tandaiTidakDiambil(p.id);
+                              if (anggotaId != null) {
+                                setS(() {
+                                  _menungguKonfirmasi
+                                      .removeWhere((x) => x.id == p.id);
+                                  _poolSusulan.add(anggotaId);
+                                });
+                                setState(
+                                    () => _poolSusulan.add(anggotaId));
+                                _loadData();
+                              }
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.orange),
+                              ),
+                              child: const Text('Tidak',
+                                  style: TextStyle(
+                                      color: Colors.orange,
+                                      fontSize: 11)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )),
+              ],
+            ),
+          ),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFB8960C)),
+              onPressed: () {
+                Navigator.pop(ctx);
+                setState(() {
+                  _adaSusulan = _poolSusulan.isNotEmpty;
+                });
+              },
+              child: const Text('Selesai',
+                  style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   String _buatLaporanWA() {
@@ -215,7 +379,7 @@ class _PengocokanScreenState extends State<PengocokanScreen>
 
     String kasStr = potongan > 0
         ? 'Kas Khadijiyyah : -${_currency.format(potongan)}\n'
-        : '(kas khadijiyyah: sudah terpotong)\n';
+        : '(kas khadijiyyah: seikhlasnya, hubungi admin)\n';
 
     return '''🎉 PEMENANG ARISAN 🎉
 --------------------------------
@@ -252,8 +416,8 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(laporan,
-                    style:
-                        const TextStyle(color: Colors.white, fontSize: 12)),
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 12)),
               ),
               const SizedBox(height: 12),
               const Text(
@@ -266,22 +430,16 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child:
-                const Text('Tutup', style: TextStyle(color: Colors.white54)),
+            child: const Text('Tutup',
+                style: TextStyle(color: Colors.white54)),
           ),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF25D366)),
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Salin teks laporan untuk dikirim ke WA')),
-              );
-            },
+            onPressed: () => Navigator.pop(context),
             icon: const Icon(Icons.share, color: Colors.white),
-            label:
-                const Text('Share WA', style: TextStyle(color: Colors.white)),
+            label: const Text('Share WA',
+                style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -293,8 +451,10 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
       padding: const EdgeInsets.all(16),
       child: Column(
         children: [
+          // Pilih Grup
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(
               color: const Color(0xFF16213E),
               borderRadius: BorderRadius.circular(12),
@@ -318,23 +478,95 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
                   _sudahKocok = false;
                   _pemenangList = [];
                   _namaDisplay = '???';
+                  _poolSusulan = [];
+                  _adaSusulan = false;
                 });
                 _loadData();
               },
             ),
           ),
           const SizedBox(height: 12),
+
+          // Info putaran
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.05),
                 borderRadius: BorderRadius.circular(20)),
             child: Text(
               'Putaran ke-$_putaranKe dari ${_grupSelected?.totalPutaran ?? 10} • ${_semuaAnggota.length} Anggota',
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
+              style:
+                  const TextStyle(color: Colors.white70, fontSize: 13),
             ),
           ),
-          const SizedBox(height: 20),
+
+          // Banner menunggu konfirmasi
+          if (_menungguKonfirmasi.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            GestureDetector(
+              onTap: _showKonfirmasiDialog,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                  border:
+                      Border.all(color: Colors.orange.withOpacity(0.5)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.hourglass_top,
+                        color: Colors.orange, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${_menungguKonfirmasi.length} pemenang menunggu konfirmasi — Tap untuk konfirmasi',
+                        style: const TextStyle(
+                            color: Colors.orange, fontSize: 12),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right,
+                        color: Colors.orange, size: 18),
+                  ],
+                ),
+              ),
+            ),
+          ],
+
+          // Banner susulan
+          if (_adaSusulan && _poolSusulan.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.blue.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+                border:
+                    Border.all(color: Colors.blue.withOpacity(0.5)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.refresh_rounded,
+                      color: Colors.blue, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${_poolSusulan.length} anggota siap untuk spin susulan putaran $_putaranKe',
+                      style:
+                          const TextStyle(color: Colors.blue, fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 12),
+
+          // Area spin utama
           Expanded(
             child: Center(
               child: Column(
@@ -343,17 +575,19 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
                   AnimatedBuilder(
                     animation: _spinController,
                     builder: (_, __) => Container(
-                      width: 240,
-                      height: 240,
+                      width: 220,
+                      height: 220,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: Colors.white.withOpacity(0.05),
                         border: Border.all(
-                            color: const Color(0xFFB8960C).withOpacity(0.5),
+                            color: const Color(0xFFB8960C)
+                                .withOpacity(0.5),
                             width: 2),
                         boxShadow: [
                           BoxShadow(
-                              color: const Color(0xFFB8960C).withOpacity(0.2),
+                              color: const Color(0xFFB8960C)
+                                  .withOpacity(0.2),
                               blurRadius: 40,
                               spreadRadius: 10)
                         ],
@@ -362,27 +596,30 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
                           ? ScaleTransition(
                               scale: _scaleAnimation,
                               child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.center,
                                 children: [
-                                  const Icon(Icons.emoji_events_rounded,
-                                      color: Color(0xFFB8960C), size: 36),
+                                  const Icon(
+                                      Icons.emoji_events_rounded,
+                                      color: Color(0xFFB8960C),
+                                      size: 32),
                                   const SizedBox(height: 4),
                                   const Text('Pemenang!',
                                       style: TextStyle(
                                           color: Color(0xFFB8960C),
-                                          fontSize: 14,
+                                          fontSize: 13,
                                           fontWeight: FontWeight.bold)),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(height: 6),
                                   Padding(
-                                    padding:
-                                        const EdgeInsets.symmetric(horizontal: 12),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12),
                                     child: Text(
                                       _pemenangList
                                           .map((p) => p.nama)
                                           .join('\n'),
                                       style: const TextStyle(
                                           color: Colors.white,
-                                          fontSize: 14,
+                                          fontSize: 12,
                                           fontWeight: FontWeight.bold),
                                       textAlign: TextAlign.center,
                                     ),
@@ -391,7 +628,8 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
                               ),
                             )
                           : Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisAlignment:
+                                  MainAxisAlignment.center,
                               children: [
                                 if (_loading)
                                   const SizedBox(
@@ -404,12 +642,13 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
                                 const SizedBox(height: 8),
                                 Padding(
                                   padding:
-                                      const EdgeInsets.symmetric(horizontal: 16),
+                                      const EdgeInsets.symmetric(
+                                          horizontal: 16),
                                   child: Text(
                                     _namaDisplay,
                                     style: TextStyle(
                                       color: Colors.white,
-                                      fontSize: _loading ? 16 : 24,
+                                      fontSize: _loading ? 14 : 20,
                                       fontWeight: FontWeight.bold,
                                     ),
                                     textAlign: TextAlign.center,
@@ -419,76 +658,137 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
                             ),
                     ),
                   ),
-                  const SizedBox(height: 32),
-                  if (!_sudahKocok)
+                  const SizedBox(height: 24),
+
+                  // Tombol-tombol
+                  if (!_sudahKocok && _menungguKonfirmasi.isEmpty) ...[
+                    // Spin utama
+                    if (!_adaSusulan)
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton.icon(
+                          onPressed: _loading
+                              ? null
+                              : () => _showKasDialog(),
+                          icon: const Icon(Icons.casino_rounded,
+                              size: 24),
+                          label: Text(
+                            _loading ? 'Mengocok...' : 'MULAI KOCOK',
+                            style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFB8960C),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(14)),
+                          ),
+                        ),
+                      ),
+
+                    // Spin susulan
+                    if (_adaSusulan && _poolSusulan.isNotEmpty) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton.icon(
+                          onPressed: _loading
+                              ? null
+                              : () => _showKasDialog(isSusulan: true),
+                          icon: const Icon(Icons.refresh_rounded,
+                              size: 24),
+                          label: Text(
+                            _loading
+                                ? 'Mengocok...'
+                                : 'SPIN SUSULAN (${_poolSusulan.length} pemenang)',
+                            style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.orange,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(14)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+
+                  if (_sudahKocok) ...[
                     SizedBox(
                       width: double.infinity,
                       height: 52,
                       child: ElevatedButton.icon(
-                        onPressed: _loading ? null : _showKasDialog,
-                        icon: const Icon(Icons.casino_rounded, size: 24),
-                        label: Text(
-                          _loading ? 'Mengocok...' : 'MULAI KOCOK',
-                          style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold),
-                        ),
+                        onPressed: _shareWA,
+                        icon: const Icon(Icons.share,
+                            color: Colors.white),
+                        label: const Text('Lihat Laporan & Share WA',
+                            style: TextStyle(
+                                color: Colors.white, fontSize: 14)),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFB8960C),
-                          foregroundColor: Colors.white,
+                          backgroundColor: const Color(0xFF25D366),
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14)),
                         ),
                       ),
                     ),
-                  if (_sudahKocok)
-                    Column(
-                      children: [
-                        SizedBox(
-                          width: double.infinity,
-                          height: 52,
-                          child: ElevatedButton.icon(
-                            onPressed: _shareWA,
-                            icon: const Icon(Icons.share, color: Colors.white),
-                            label: const Text('Lihat Laporan & Share WA',
-                                style:
-                                    TextStyle(color: Colors.white, fontSize: 14)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF25D366),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14)),
-                            ),
-                          ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: OutlinedButton.icon(
+                        onPressed: _showKonfirmasiDialog,
+                        icon: const Icon(Icons.check_circle_outline,
+                            color: Color(0xFFB8960C), size: 18),
+                        label: const Text('Konfirmasi Pemenang',
+                            style: TextStyle(
+                                color: Color(0xFFB8960C))),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(
+                              color: Color(0xFFB8960C)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
                         ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 48,
-                          child: OutlinedButton.icon(
-                            onPressed: () {
-                              setState(() {
-                                _sudahKocok = false;
-                                _pemenangList = [];
-                                _namaDisplay = '???';
-                              });
-                              _loadData();
-                            },
-                            icon: const Icon(Icons.refresh,
-                                color: Colors.white70),
-                            label: const Text('Kocok Putaran Baru',
-                                style: TextStyle(color: Colors.white70)),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.white24),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14)),
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          setState(() {
+                            _sudahKocok = false;
+                            _pemenangList = [];
+                            _namaDisplay = '???';
+                          });
+                          _loadData();
+                        },
+                        icon: const Icon(Icons.arrow_forward,
+                            color: Colors.white70, size: 18),
+                        label: const Text('Lanjut Putaran Berikutnya',
+                            style: TextStyle(color: Colors.white70)),
+                        style: OutlinedButton.styleFrom(
+                          side:
+                              const BorderSide(color: Colors.white24),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
           ),
+
+          // Info algoritma
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -496,12 +796,14 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
                 borderRadius: BorderRadius.circular(10)),
             child: const Row(
               children: [
-                Icon(Icons.info_outline, color: Colors.white38, size: 14),
+                Icon(Icons.info_outline,
+                    color: Colors.white38, size: 14),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Fisher-Yates Shuffle — setiap anggota memiliki peluang yang sama',
-                    style: TextStyle(color: Colors.white38, fontSize: 11),
+                    style: TextStyle(
+                        color: Colors.white38, fontSize: 11),
                   ),
                 ),
               ],
@@ -526,7 +828,8 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
         foregroundColor: Colors.white,
         title: const Text('Spin Pengocokan',
             style: TextStyle(
-                color: Color(0xFFB8960C), fontWeight: FontWeight.bold)),
+                color: Color(0xFFB8960C),
+                fontWeight: FontWeight.bold)),
         elevation: 0,
       ),
       body: SafeArea(child: _buildBody()),

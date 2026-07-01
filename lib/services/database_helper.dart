@@ -82,7 +82,8 @@ class DatabaseHelper {
       )
     ''');
 
-    // status: 'menunggu', 'diambil', 'tidak_diambil'
+    // status: 'menunggu', 'diambil'
+    // is_susulan: 1 jika ini kocokan pengganti
     await db.execute('''
       CREATE TABLE pengocokan (
         id TEXT PRIMARY KEY,
@@ -93,12 +94,12 @@ class DatabaseHelper {
         potongan_kas INTEGER NOT NULL DEFAULT 0,
         catatan_kas TEXT,
         status TEXT NOT NULL DEFAULT 'menunggu',
+        is_susulan INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (grup_id) REFERENCES grup_arisan(id),
         FOREIGN KEY (anggota_id) REFERENCES anggota(id)
       )
     ''');
 
-    // Insert pengurus default
     await db.insert('users', {
       'id': 'pengurus-001',
       'nama': 'Pengurus Khadijiyyah',
@@ -107,7 +108,6 @@ class DatabaseHelper {
       'role': 'pengurus',
     });
 
-    // Insert periode 2026/2027
     await db.insert('periode', {
       'id': 'periode-2026-2027',
       'nama_periode': '2026/2027',
@@ -117,7 +117,6 @@ class DatabaseHelper {
       'status': 'aktif',
     });
 
-    // Insert grup arisan 50rb
     await db.insert('grup_arisan', {
       'id': 'grup-50rb',
       'periode_id': 'periode-2026-2027',
@@ -128,7 +127,6 @@ class DatabaseHelper {
       'total_putaran': 10,
     });
 
-    // Insert grup arisan 200rb
     await db.insert('grup_arisan', {
       'id': 'grup-200rb',
       'periode_id': 'periode-2026-2027',

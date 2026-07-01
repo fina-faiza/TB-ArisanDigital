@@ -118,7 +118,7 @@ class _RiwayatScreenState extends State<RiwayatScreen> {
 
     String kasStr = potongan > 0
         ? 'Kas Khadijiyyah : -${_currency.format(potongan)}\n'
-        : '(kas khadijiyyah: sudah terpotong)\n';
+        : '(kas khadijiyyah: seikhlasnya, hubungi admin)\n';
 
     return '''🎉 PEMENANG ARISAN 🎉
 --------------------------------

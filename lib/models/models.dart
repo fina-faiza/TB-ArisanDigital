@@ -196,7 +196,8 @@ class Pembayaran {
       );
 }
 
-// status: 'menunggu', 'diambil', 'tidak_diambil'
+// status: 'menunggu', 'diambil'
+// isSusulan: true jika ini kocokan pengganti
 class Pengocokan {
   final String id;
   final String grupId;
@@ -206,6 +207,7 @@ class Pengocokan {
   final int potonganKas;
   final String? catatanKas;
   final String status;
+  final bool isSusulan;
   final String? namaAnggota;
   final String? namaGrup;
   final int? nominalGrup;
@@ -220,6 +222,7 @@ class Pengocokan {
     this.potonganKas = 0,
     this.catatanKas,
     this.status = 'menunggu',
+    this.isSusulan = false,
     this.namaAnggota,
     this.namaGrup,
     this.nominalGrup,
@@ -235,6 +238,7 @@ class Pengocokan {
         'potongan_kas': potonganKas,
         'catatan_kas': catatanKas,
         'status': status,
+        'is_susulan': isSusulan ? 1 : 0,
       };
 
   factory Pengocokan.fromMap(Map<String, dynamic> map) => Pengocokan(
@@ -246,6 +250,7 @@ class Pengocokan {
         potonganKas: map['potongan_kas'] ?? 0,
         catatanKas: map['catatan_kas'],
         status: map['status'] ?? 'menunggu',
+        isSusulan: (map['is_susulan'] ?? 0) == 1,
         namaAnggota: map['nama_anggota'],
         namaGrup: map['nama_grup'],
         nominalGrup: map['nominal'],
