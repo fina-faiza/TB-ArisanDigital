@@ -9,7 +9,7 @@ class DatabaseHelper {
 
   Future<Database> get database async {
     if (_database != null) return _database!;
-    _database = await _initDB('arisan_khadijiyyah.db');
+    _database = await _initDB('arisan_khadijiyyah_v2.db');
     return _database!;
   }
 
@@ -82,8 +82,17 @@ class DatabaseHelper {
       )
     ''');
 
-    // status: 'menunggu', 'diambil'
-    // is_susulan: 1 jika ini kocokan pengganti
+    await db.execute('''
+      CREATE TABLE kocokan_pool (
+        id TEXT PRIMARY KEY,
+        grup_id TEXT NOT NULL,
+        anggota_id TEXT NOT NULL,
+        putaran_ke INTEGER NOT NULL,
+        FOREIGN KEY (grup_id) REFERENCES grup_arisan(id),
+        FOREIGN KEY (anggota_id) REFERENCES anggota(id)
+      )
+    ''');
+
     await db.execute('''
       CREATE TABLE pengocokan (
         id TEXT PRIMARY KEY,

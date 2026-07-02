@@ -22,7 +22,7 @@ class _PengocokanScreenState extends State<PengocokanScreen>
 
   GrupArisan? _grupSelected;
   List<Anggota> _semuaAnggota = [];
-  List<Anggota> _poolAnggota = []; // Anggota yang dipilih ikut kocokan
+  List<Anggota> _poolAnggota = [];
   List<Anggota> _pemenangList = [];
   List<Pengocokan> _menungguKonfirmasi = [];
 
@@ -31,16 +31,20 @@ class _PengocokanScreenState extends State<PengocokanScreen>
   int _putaranKe = 1;
   int _kurangPemenang = 0;
   bool _adaSusulan = false;
+  bool _dataReady = false; // true setelah load pertama selesai
 
   late AnimationController _spinController;
   late AnimationController _revealController;
   late Animation<double> _scaleAnimation;
 
   String _namaDisplay = '???';
-  List<String> _anggotaNames = [];
-
   final _kasCtrl = TextEditingController();
   String _catatanKas = '';
+
+  final List<String> _namaBulan = [
+    'Mei', 'Juni', 'Juli', 'Agustus', 'September',
+    'Oktober', 'November', 'Desember', 'Januari', 'Februari'
+  ];
 
   @override
   void initState() {
@@ -48,8 +52,9 @@ class _PengocokanScreenState extends State<PengocokanScreen>
     if (widget.grupList.isNotEmpty) {
       _grupSelected = widget.grupList.first;
       _loadData();
+    } else {
+      _dataReady = true;
     }
-
     _spinController = AnimationController(
         vsync: this, duration: const Duration(seconds: 3));
     _revealController = AnimationController(
@@ -67,39 +72,216 @@ class _PengocokanScreenState extends State<PengocokanScreen>
     super.dispose();
   }
 
-  Future<void> _loadData() async {
-    if (_grupSelected == null) return;
-    final anggota = await _service.getAnggotaByGrup(_grupSelected!.id);
-    final putaranDiambil =
-        await _service.getPutaranTerakhir(_grupSelected!.id);
-    final putaranAktif = putaranDiambil + 1;
-    final adaPool =
-        await _service.adaPool(_grupSelected!.id, putaranAktif);
-    final pool = adaPool
-        ? await _service.getPoolPutaran(_grupSelected!.id, putaranAktif)
-        : [];
-    final menunggu = await _service.getPemenangMenunggu(
-        _grupSelected!.id, putaranAktif);
-    final kurang = await _service.hitungKurangPemenang(
-        _grupSelected!.id,
-        putaranAktif,
-        _grupSelected!.jumlahPemenangPerPutaran);
-
-    setState(() {
-      _semuaAnggota = anggota;
-      _anggotaNames = anggota.map((a) => a.nama).toList();
-      _putaranKe = putaranAktif;
-      _poolAnggota = pool as List<Anggota>;
-      _menungguKonfirmasi = menunggu;
-      _kurangPemenang = kurang;
-      _adaSusulan = menunggu.isEmpty && kurang > 0 && adaPool;
-    });
+  String _getNamaBulan(int putaran) {
+    if (putaran < 1 || putaran > _namaBulan.length) return 'Putaran $putaran';
+    return _namaBulan[putaran - 1];
   }
 
-  // Dialog pilih anggota yang ikut kocokan
-  void _showPilihAnggotaDialog() {
-    Set<String> selectedIds =
-        _poolAnggota.map((a) => a.id).toSet();
+  Future<void> _loadData() async {
+    if (_grupSelected == null) {
+      if (mounted) setState(() => _dataReady = true);
+      return;
+    }
+
+    try {
+      final anggota = await _service.getAnggotaByGrup(_grupSelected!.id);
+      final putaranDiambil =
+          await _service.getPutaranTerakhir(_grupSelected!.id);
+      final putaranAktif = putaranDiambil + 1;
+      final adaPool =
+          await _service.adaPool(_grupSelected!.id, putaranAktif);
+      final pool = adaPool
+          ? await _service.getPoolPutaran(_grupSelected!.id, putaranAktif)
+          : <Anggota>[];
+      final menunggu = await _service.getPemenangMenunggu(
+          _grupSelected!.id, putaranAktif);
+      final kurang = await _service.hitungKurangPemenang(
+          _grupSelected!.id,
+          putaranAktif,
+          _grupSelected!.jumlahPemenangPerPutaran);
+
+      if (!mounted) return;
+      setState(() {
+        _semuaAnggota = anggota;
+        _putaranKe = putaranAktif;
+        _poolAnggota = pool;
+        _menungguKonfirmasi = menunggu;
+        _kurangPemenang = kurang;
+        _adaSusulan = menunggu.isEmpty && kurang > 0 && adaPool;
+        _dataReady = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _dataReady = true);
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error load data: $e')));
+    }
+  }
+
+  Future<void> _loadDataUntukPutaran(int putaran) async {
+    if (_grupSelected == null) return;
+
+    try {
+      final anggota = await _service.getAnggotaByGrup(_grupSelected!.id);
+      final adaPool =
+          await _service.adaPool(_grupSelected!.id, putaran);
+      final pool = adaPool
+          ? await _service.getPoolPutaran(_grupSelected!.id, putaran)
+          : <Anggota>[];
+      final menunggu =
+          await _service.getPemenangMenunggu(_grupSelected!.id, putaran);
+      final kurang = await _service.hitungKurangPemenang(
+          _grupSelected!.id,
+          putaran,
+          _grupSelected!.jumlahPemenangPerPutaran);
+
+      if (!mounted) return;
+      setState(() {
+        _semuaAnggota = anggota;
+        _putaranKe = putaran;
+        _poolAnggota = pool;
+        _menungguKonfirmasi = menunggu;
+        _kurangPemenang = kurang;
+        _adaSusulan = menunggu.isEmpty && kurang > 0 && adaPool;
+        _sudahKocok = false;
+        _pemenangList = [];
+        _namaDisplay = '???';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  void _showPilihPutaranDialog() {
+    final totalPutaran = _grupSelected?.totalPutaran ?? 10;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF16213E),
+        title: const Text('Pilih Putaran',
+            style: TextStyle(color: Color(0xFFB8960C), fontSize: 16)),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: ListView.builder(
+            itemCount: totalPutaran,
+            itemBuilder: (_, i) {
+              final putaran = i + 1;
+              final bulan = _getNamaBulan(putaran);
+              final isAktif = putaran == _putaranKe;
+              return GestureDetector(
+                onTap: () {
+                  Navigator.pop(context);
+                  _loadDataUntukPutaran(putaran);
+                },
+                child: Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: isAktif
+                        ? const Color(0xFFB8960C).withOpacity(0.2)
+                        : Colors.white.withOpacity(0.04),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: isAktif
+                          ? const Color(0xFFB8960C)
+                          : Colors.white12,
+                      width: isAktif ? 1.5 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: isAktif
+                              ? const Color(0xFFB8960C)
+                              : Colors.white12,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text('$putaran',
+                              style: TextStyle(
+                                color: isAktif
+                                    ? Colors.white
+                                    : Colors.white54,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              )),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Putaran $putaran',
+                                style: TextStyle(
+                                  color: isAktif
+                                      ? const Color(0xFFB8960C)
+                                      : Colors.white,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                )),
+                            Text(bulan,
+                                style: const TextStyle(
+                                    color: Colors.white54, fontSize: 11)),
+                          ],
+                        ),
+                      ),
+                      if (isAktif)
+                        const Icon(Icons.check_circle,
+                            color: Color(0xFFB8960C), size: 18),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Tutup',
+                style: TextStyle(color: Colors.white54)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPilihAnggotaDialog() async {
+    if (_grupSelected == null) return;
+
+    // Load anggota tanpa mengubah UI utama
+    List<Anggota> anggota;
+    try {
+      anggota = await _service.getAnggotaByGrup(_grupSelected!.id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: $e')));
+      }
+      return;
+    }
+
+    if (!mounted) return;
+
+    if (anggota.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Belum ada anggota di grup ini!')),
+      );
+      return;
+    }
+
+    // Update state tanpa trigger loading
+    setState(() => _semuaAnggota = anggota);
+
+    Set<String> selectedIds = _poolAnggota.map((a) => a.id).toSet();
 
     showDialog(
       context: context,
@@ -109,15 +291,17 @@ class _PengocokanScreenState extends State<PengocokanScreen>
           title: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Pilih Anggota\nPutaran $_putaranKe',
-                style: const TextStyle(
-                    color: Color(0xFFB8960C), fontSize: 15),
+              Expanded(
+                child: Text(
+                  'Pilih Anggota\nPutaran $_putaranKe (${_getNamaBulan(_putaranKe)})',
+                  style: const TextStyle(
+                      color: Color(0xFFB8960C), fontSize: 13),
+                ),
               ),
               Text(
-                '${selectedIds.length}/${_semuaAnggota.length}',
+                '${selectedIds.length}/${anggota.length}',
                 style: const TextStyle(
-                    color: Colors.white54, fontSize: 13),
+                    color: Colors.white54, fontSize: 12),
               ),
             ],
           ),
@@ -126,7 +310,6 @@ class _PengocokanScreenState extends State<PengocokanScreen>
             height: MediaQuery.of(context).size.height * 0.5,
             child: Column(
               children: [
-                // Pilih semua / batal semua
                 Row(
                   children: [
                     Expanded(
@@ -139,23 +322,20 @@ class _PengocokanScreenState extends State<PengocokanScreen>
                         ),
                         onPressed: () {
                           setS(() {
-                            if (selectedIds.length ==
-                                _semuaAnggota.length) {
+                            if (selectedIds.length == anggota.length) {
                               selectedIds.clear();
                             } else {
-                              selectedIds = _semuaAnggota
-                                  .map((a) => a.id)
-                                  .toSet();
+                              selectedIds =
+                                  anggota.map((a) => a.id).toSet();
                             }
                           });
                         },
                         child: Text(
-                          selectedIds.length == _semuaAnggota.length
+                          selectedIds.length == anggota.length
                               ? 'Batal Semua'
                               : 'Pilih Semua',
                           style: const TextStyle(
-                              color: Color(0xFFB8960C),
-                              fontSize: 12),
+                              color: Color(0xFFB8960C), fontSize: 12),
                         ),
                       ),
                     ),
@@ -164,9 +344,9 @@ class _PengocokanScreenState extends State<PengocokanScreen>
                 const SizedBox(height: 8),
                 Expanded(
                   child: ListView.builder(
-                    itemCount: _semuaAnggota.length,
+                    itemCount: anggota.length,
                     itemBuilder: (_, i) {
-                      final a = _semuaAnggota[i];
+                      final a = anggota[i];
                       final isSelected = selectedIds.contains(a.id);
                       return GestureDetector(
                         onTap: () {
@@ -240,18 +420,15 @@ class _PengocokanScreenState extends State<PengocokanScreen>
                 if (selectedIds.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                        content:
-                            Text('Pilih minimal 1 anggota!')),
+                        content: Text('Pilih minimal 1 anggota!')),
                   );
                   return;
                 }
-                await _service.simpanPool(
-                    _grupSelected!.id,
-                    _putaranKe,
-                    selectedIds.toList());
+                await _service.simpanPool(_grupSelected!.id,
+                    _putaranKe, selectedIds.toList());
                 if (!mounted) return;
                 Navigator.pop(ctx);
-                _loadData();
+                _loadDataUntukPutaran(_putaranKe);
               },
               child: const Text('Simpan',
                   style: TextStyle(color: Colors.white)),
@@ -271,9 +448,9 @@ class _PengocokanScreenState extends State<PengocokanScreen>
         backgroundColor: const Color(0xFF16213E),
         title: Text(
           isSusulan
-              ? 'Spin Susulan Putaran $_putaranKe'
-              : 'Mulai Kocok Putaran $_putaranKe',
-          style: const TextStyle(color: Colors.white, fontSize: 15),
+              ? 'Spin Susulan - Putaran $_putaranKe (${_getNamaBulan(_putaranKe)})'
+              : 'Kocok Putaran $_putaranKe (${_getNamaBulan(_putaranKe)})',
+          style: const TextStyle(color: Colors.white, fontSize: 14),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -285,13 +462,13 @@ class _PengocokanScreenState extends State<PengocokanScreen>
                 decoration: BoxDecoration(
                   color: Colors.orange.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
-                  border:
-                      Border.all(color: Colors.orange.withOpacity(0.4)),
+                  border: Border.all(
+                      color: Colors.orange.withOpacity(0.4)),
                 ),
                 child: Text(
-                  'Mencari $_kurangPemenang pemenang pengganti.\nPool = semua anggota pilihan KECUALI yang sudah Diambil.',
-                  style:
-                      const TextStyle(color: Colors.orange, fontSize: 12),
+                  'Mencari $_kurangPemenang pemenang pengganti.\nPool = anggota pilihan KECUALI yang sudah Diambil.',
+                  style: const TextStyle(
+                      color: Colors.orange, fontSize: 12),
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -340,7 +517,7 @@ class _PengocokanScreenState extends State<PengocokanScreen>
             onPressed: () {
               final kas = int.tryParse(_kasCtrl.text) ?? 0;
               _catatanKas =
-                  kas > 0 ? '(kas khadijiyyah: seikhlasnya, hubungi admin)' : '';
+                  kas > 0 ? '(kas khadijiyyah: sudah terpotong)' : '';
               Navigator.pop(context);
               _mulaiKocok(kas, isSusulan: isSusulan);
             },
@@ -375,7 +552,6 @@ class _PengocokanScreenState extends State<PengocokanScreen>
     _spinController.reset();
     _spinController.forward();
 
-    // Animasi nama berputar
     final poolNames = _poolAnggota.map((a) => a.nama).toList();
     final stopwatch = Stopwatch()..start();
     int delay = 60;
@@ -421,10 +597,9 @@ class _PengocokanScreenState extends State<PengocokanScreen>
 
     _revealController.reset();
     _revealController.forward();
-    await _loadData();
+    await _loadDataUntukPutaran(_putaranKe);
   }
 
-  // Dialog konfirmasi pemenang
   void _showKonfirmasiDialog() {
     if (_menungguKonfirmasi.isEmpty) return;
     showDialog(
@@ -433,9 +608,9 @@ class _PengocokanScreenState extends State<PengocokanScreen>
         builder: (ctx, setS) => AlertDialog(
           backgroundColor: const Color(0xFF16213E),
           title: Text(
-            'Konfirmasi Putaran $_putaranKe\n(${_menungguKonfirmasi.length} menunggu)',
+            'Konfirmasi Putaran $_putaranKe — ${_getNamaBulan(_putaranKe)}\n(${_menungguKonfirmasi.length} menunggu)',
             style: const TextStyle(
-                color: Color(0xFFB8960C), fontSize: 15),
+                color: Color(0xFFB8960C), fontSize: 14),
           ),
           content: SizedBox(
             width: double.maxFinite,
@@ -448,8 +623,7 @@ class _PengocokanScreenState extends State<PengocokanScreen>
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.05),
                           borderRadius: BorderRadius.circular(10),
-                          border:
-                              Border.all(color: Colors.white12),
+                          border: Border.all(color: Colors.white12),
                         ),
                         child: Row(
                           children: [
@@ -467,20 +641,18 @@ class _PengocokanScreenState extends State<PengocokanScreen>
                               onTap: () async {
                                 await _service.tandaiDiambil(p.id);
                                 setS(() => _menungguKonfirmasi
-                                    .removeWhere(
-                                        (x) => x.id == p.id));
-                                await _loadData();
+                                    .removeWhere((x) => x.id == p.id));
+                                await _loadDataUntukPutaran(_putaranKe);
                               },
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 10, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color:
-                                      Colors.green.withOpacity(0.2),
+                                  color: Colors.green.withOpacity(0.2),
                                   borderRadius:
                                       BorderRadius.circular(8),
-                                  border: Border.all(
-                                      color: Colors.green),
+                                  border:
+                                      Border.all(color: Colors.green),
                                 ),
                                 child: const Text('Diambil',
                                     style: TextStyle(
@@ -494,16 +666,14 @@ class _PengocokanScreenState extends State<PengocokanScreen>
                                 await _service
                                     .tandaiTidakDiambil(p.id);
                                 setS(() => _menungguKonfirmasi
-                                    .removeWhere(
-                                        (x) => x.id == p.id));
-                                await _loadData();
+                                    .removeWhere((x) => x.id == p.id));
+                                await _loadDataUntukPutaran(_putaranKe);
                               },
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 10, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: Colors.red
-                                      .withOpacity(0.2),
+                                  color: Colors.red.withOpacity(0.2),
                                   borderRadius:
                                       BorderRadius.circular(8),
                                   border:
@@ -527,7 +697,7 @@ class _PengocokanScreenState extends State<PengocokanScreen>
                   backgroundColor: const Color(0xFFB8960C)),
               onPressed: () {
                 Navigator.pop(ctx);
-                _loadData();
+                _loadDataUntukPutaran(_putaranKe);
               },
               child: const Text('Selesai',
                   style: TextStyle(color: Colors.white)),
@@ -544,22 +714,21 @@ class _PengocokanScreenState extends State<PengocokanScreen>
         DateFormat('dd MMM yyyy, HH:mm', 'id_ID').format(now);
     final grup = _grupSelected!;
     final potongan = int.tryParse(_kasCtrl.text) ?? 0;
-    final totalDiterima =
-        (grup.nominal * grup.jumlahPeserta ~/
+    final totalDiterima = (grup.nominal *
+                grup.jumlahPeserta ~/
                 grup.jumlahPemenangPerPutaran) -
             potongan;
 
-    String pemenangStr = _pemenangList
-        .map((p) => '✨ ${p.nama} ✨')
-        .join('\n');
-
-    String kasStr = potongan > 0
+    final pemenangStr =
+        _pemenangList.map((p) => '✨ ${p.nama} ✨').join('\n');
+    final kasStr = potongan > 0
         ? 'Kas Khadijiyyah : -${_currency.format(potongan)}\n'
-        : '(kas khadijiyyah: seikhlasnya, hubungi admin)\n';
+        : '(kas khadijiyyah: sudah terpotong)\n';
 
     return '''🎉 PEMENANG ARISAN 🎉
 --------------------------------
 Grup: ${grup.namaGrup} ARISAN KHADIJIYYAH
+Bulan: ${_getNamaBulan(_putaranKe)}
 Tanggal: $tgl
 Putaran: $_putaranKe dari ${grup.totalPutaran}
 Sisa Putaran: ${grup.totalPutaran - _putaranKe}
@@ -616,14 +785,21 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
   Widget _buildBody() {
     final screenH = MediaQuery.of(context).size.height;
 
+    // Loading pertama kali
+    if (!_dataReady) {
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFFB8960C)),
+      );
+    }
+
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       child: Column(
         children: [
           // Pilih Grup
           Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 12, vertical: 6),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: const Color(0xFF16213E),
               borderRadius: BorderRadius.circular(12),
@@ -631,8 +807,7 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
             child: DropdownButton<GrupArisan>(
               value: _grupSelected,
               dropdownColor: const Color(0xFF16213E),
-              style: const TextStyle(
-                  color: Colors.white, fontSize: 13),
+              style: const TextStyle(color: Colors.white, fontSize: 13),
               isExpanded: true,
               underline: const SizedBox(),
               items: widget.grupList
@@ -650,6 +825,7 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
                   _namaDisplay = '???';
                   _poolAnggota = [];
                   _adaSusulan = false;
+                  _dataReady = false;
                 });
                 _loadData();
               },
@@ -657,26 +833,41 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
           ),
           const SizedBox(height: 8),
 
-          // Info putaran & pool
+          // Putaran + Pilih Anggota
           Row(
             children: [
               Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(10)),
-                  child: Text(
-                    'Putaran $_putaranKe dari ${_grupSelected?.totalPutaran ?? 10}',
-                    style: const TextStyle(
-                        color: Colors.white70, fontSize: 12),
-                    textAlign: TextAlign.center,
+                child: GestureDetector(
+                  onTap: _showPilihPutaranDialog,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF16213E),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                          color: const Color(0xFFB8960C).withOpacity(0.4)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.calendar_today,
+                            size: 14, color: Color(0xFFB8960C)),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Putaran $_putaranKe · ${_getNamaBulan(_putaranKe)}',
+                            style: const TextStyle(
+                                color: Color(0xFFB8960C), fontSize: 12),
+                          ),
+                        ),
+                        const Icon(Icons.arrow_drop_down,
+                            color: Color(0xFFB8960C), size: 18),
+                      ],
+                    ),
                   ),
                 ),
               ),
               const SizedBox(width: 8),
-              // Tombol pilih anggota
               GestureDetector(
                 onTap: _showPilihAnggotaDialog,
                 child: Container(
@@ -703,13 +894,14 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
                       const SizedBox(width: 4),
                       Text(
                         _poolAnggota.isEmpty
-                            ? 'Pilih Anggota'
-                            : '${_poolAnggota.length} dipilih',
+                            ? 'Pilih'
+                            : '${_poolAnggota.length}',
                         style: TextStyle(
                           color: _poolAnggota.isEmpty
                               ? Colors.red
                               : const Color(0xFFB8960C),
                           fontSize: 12,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
@@ -762,8 +954,7 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
               decoration: BoxDecoration(
                 color: Colors.blue.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(10),
-                border:
-                    Border.all(color: Colors.blue.withOpacity(0.5)),
+                border: Border.all(color: Colors.blue.withOpacity(0.5)),
               ),
               child: Row(
                 children: [
@@ -772,7 +963,7 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Butuh $_kurangPemenang pemenang susulan putaran $_putaranKe',
+                      'Butuh $_kurangPemenang pemenang susulan · ${_getNamaBulan(_putaranKe)}',
                       style: const TextStyle(
                           color: Colors.blue, fontSize: 12),
                     ),
@@ -788,19 +979,17 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
           AnimatedBuilder(
             animation: _spinController,
             builder: (_, __) => Container(
-              width: screenH * 0.27,
-              height: screenH * 0.27,
+              width: screenH * 0.26,
+              height: screenH * 0.26,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.white.withOpacity(0.05),
                 border: Border.all(
-                    color:
-                        const Color(0xFFB8960C).withOpacity(0.5),
+                    color: const Color(0xFFB8960C).withOpacity(0.5),
                     width: 2),
                 boxShadow: [
                   BoxShadow(
-                      color:
-                          const Color(0xFFB8960C).withOpacity(0.2),
+                      color: const Color(0xFFB8960C).withOpacity(0.2),
                       blurRadius: 30,
                       spreadRadius: 5)
                 ],
@@ -809,8 +998,7 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
                   ? ScaleTransition(
                       scale: _scaleAnimation,
                       child: Column(
-                        mainAxisAlignment:
-                            MainAxisAlignment.center,
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           const Icon(Icons.emoji_events_rounded,
                               color: Color(0xFFB8960C), size: 28),
@@ -825,9 +1013,7 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 10),
                             child: Text(
-                              _pemenangList
-                                  .map((p) => p.nama)
-                                  .join('\n'),
+                              _pemenangList.map((p) => p.nama).join('\n'),
                               style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 11,
@@ -846,8 +1032,7 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
                             width: 32,
                             height: 32,
                             child: CircularProgressIndicator(
-                                color: Color(0xFFB8960C),
-                                strokeWidth: 3),
+                                color: Color(0xFFB8960C), strokeWidth: 3),
                           ),
                         const SizedBox(height: 6),
                         Padding(
@@ -870,7 +1055,7 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
 
           const SizedBox(height: 14),
 
-          // Tombol-tombol
+          // Tombol aksi
           if (!_sudahKocok && _menungguKonfirmasi.isEmpty) ...[
             if (!_adaSusulan)
               SizedBox(
@@ -978,8 +1163,8 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
                 icon: const Icon(Icons.arrow_forward,
                     color: Colors.white54, size: 16),
                 label: const Text('Lanjut Putaran Berikutnya',
-                    style: TextStyle(
-                        color: Colors.white54, fontSize: 13)),
+                    style:
+                        TextStyle(color: Colors.white54, fontSize: 13)),
                 style: OutlinedButton.styleFrom(
                   side: const BorderSide(color: Colors.white24),
                   shape: RoundedRectangleBorder(
@@ -990,8 +1175,6 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
           ],
 
           const SizedBox(height: 10),
-
-          // Info algoritma
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -999,14 +1182,13 @@ Laporan iuran terbaru sudah tersedia di aplikasi.
                 borderRadius: BorderRadius.circular(8)),
             child: const Row(
               children: [
-                Icon(Icons.info_outline,
-                    color: Colors.white30, size: 12),
+                Icon(Icons.info_outline, color: Colors.white30, size: 12),
                 SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     'Fisher-Yates Shuffle — setiap anggota memiliki peluang yang sama',
-                    style: TextStyle(
-                        color: Colors.white30, fontSize: 10),
+                    style:
+                        TextStyle(color: Colors.white30, fontSize: 10),
                   ),
                 ),
               ],
